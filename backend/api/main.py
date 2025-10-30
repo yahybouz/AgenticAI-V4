@@ -18,6 +18,7 @@ from api.routes import (
     agents,
     coach,
     docs,
+    documents,
     mail,
     monitoring,
     orchestrator,
@@ -70,6 +71,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(voice.router)
 app.include_router(mail.router)
 app.include_router(rag.router)
+app.include_router(documents.router)
 app.include_router(coach.router)
 app.include_router(docs.router)
 app.include_router(webintel.router)

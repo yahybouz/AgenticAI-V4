@@ -1,9 +1,10 @@
-from . import agents, coach, docs, mail, monitoring, orchestrator, pm, rag, voice, webintel
+from . import agents, coach, docs, documents, mail, monitoring, orchestrator, pm, rag, voice, webintel
 
 __all__ = [
     'agents',
     'coach',
     'docs',
+    'documents',
     'mail',
     'monitoring',
     'orchestrator',

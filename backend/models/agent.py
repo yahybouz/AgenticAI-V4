@@ -64,8 +64,19 @@ class AgentSpec(BaseModel):
 
 class AgentExecutionRequest(BaseModel):
     agent_id: str
-    payload: Dict[str, object]
+    payload: Dict[str, object] | None = None
+    input: Dict[str, object] | None = None  # Alias pour payload
     priority: Literal["low", "normal", "high"] = "normal"
+
+    def model_post_init(self, __context):
+        """Support both 'payload' and 'input' field names"""
+        if self.input is not None and self.payload is None:
+            self.payload = self.input
+        elif self.payload is not None and self.input is None:
+            self.input = self.payload
+        elif self.payload is None and self.input is None:
+            self.payload = {}
+            self.input = {}
 
 
 class AgentExecutionResult(BaseModel):
