@@ -46,6 +46,14 @@ Le script démarre automatiquement :
 
 ## ✨ Fonctionnalités
 
+### 🔐 Authentification Multi-Utilisateurs
+- **JWT Authentication** - Tokens sécurisés avec expiration (7 jours)
+- **Rôles utilisateur** - Admin, User, Guest
+- **Clés API** - Génération et validation sécurisée
+- **Isolation des données** - Chaque utilisateur a son propre espace
+- **Quotas personnalisés** - Limites d'agents, documents, stockage
+- **Admin par défaut** - `admin@agenticai.dev` / `admin123`
+
 ### Système multi-agents
 - **Orchestrateur intelligent** - Coordination automatique
 - **Coach personnel** - Habitudes, objectifs, motivation
@@ -54,12 +62,14 @@ Le script démarre automatiquement :
 - **Project Manager** - Planification, suivi
 - **Web Intelligence** - Recherche, analyse
 - **Documentation** - Génération, analyse
+- **Agents personnalisés** - Création par utilisateur avec quotas
 
 ### RAG enrichi
 - **Multi-formats** - PDF, DOCX, TXT, Markdown, HTML
 - **Recherche sémantique** - Embedding via nomic-embed-text
 - **Cache LRU** - Optimisation des performances
 - **Reranking LLM** - Meilleure pertinence
+- **Isolation par utilisateur** - Documents privés par défaut
 
 ## 🔧 Utilisation
 
@@ -67,10 +77,46 @@ Le script démarre automatiquement :
 - **Swagger UI** : http://localhost:8000/docs
 - **ReDoc** : http://localhost:8000/redoc
 
+### Authentification
+
+**Inscription :**
+```bash
+curl -X POST "http://localhost:8000/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "username": "myuser",
+    "password": "SecurePass123!",
+    "full_name": "John Doe"
+  }'
+```
+
+**Connexion :**
+```bash
+curl -X POST "http://localhost:8000/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123!"
+  }'
+# Retourne: {"access_token": "eyJ...", "token_type": "bearer"}
+```
+
+**Utiliser le token :**
+```bash
+# Stocker le token
+TOKEN="votre_token_jwt"
+
+# Récupérer vos informations
+curl -X GET "http://localhost:8000/api/auth/me" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ### Upload de documents
 
 ```bash
 curl -X POST "http://localhost:8000/api/documents/upload" \
+  -H "Authorization: Bearer $TOKEN" \
   -F "file=@document.pdf" \
   -F "collection_name=documents"
 ```
@@ -79,6 +125,7 @@ curl -X POST "http://localhost:8000/api/documents/upload" \
 
 ```bash
 curl -X POST "http://localhost:8000/api/documents/search" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Comment fonctionne le RAG ?",
@@ -87,14 +134,19 @@ curl -X POST "http://localhost:8000/api/documents/search" \
   }'
 ```
 
-### Orchestration multi-agents
+### Créer un agent personnalisé
 
 ```bash
-curl -X POST "http://localhost:8000/api/orchestrator/run" \
+curl -X POST "http://localhost:8000/api/agents/" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "task": "Analyse ce document et crée un résumé",
-    "context": {}
+    "name": "Mon Agent",
+    "domain": "RAG",
+    "skills": ["search", "analyze"],
+    "description": "Agent personnalisé",
+    "input_schema": {},
+    "output_schema": {}
   }'
 ```
 
@@ -139,8 +191,14 @@ Quand l'application est lancée :
 # Activer l'environnement virtuel
 source .venv/bin/activate
 
+# Tester le système d'authentification
+python scripts/test_auth.py
+
 # Tester le système RAG
 python scripts/test_enhanced_rag.py
+
+# Tester les routes protégées (nécessite l'API en cours d'exécution)
+./scripts/test_protected_routes.sh
 ```
 
 ## 🐛 Troubleshooting
