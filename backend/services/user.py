@@ -1,12 +1,18 @@
 """
-Service de gestion des utilisateurs
+Service de gestion des utilisateurs avec PostgreSQL
 """
 
 import logging
 import uuid
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List
 
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.exc import IntegrityError
+
+from config import get_settings
+from models.db import Base, UserDB, APIKeyDB
 from models.user import User, UserCreate, UserUpdate, UserRole, UserStatus, UserStats
 from services.auth import AuthService
 
@@ -15,51 +21,70 @@ logger = logging.getLogger(__name__)
 
 class UserService:
     """
-    Service de gestion des utilisateurs.
-
-    Note: Cette implémentation utilise un stockage en mémoire.
-    En production, remplacer par PostgreSQL.
+    Service de gestion des utilisateurs avec PostgreSQL.
     """
 
     def __init__(self):
         self.auth_service = AuthService()
+        settings = get_settings()
 
-        # Stockage en mémoire (remplacer par DB en production)
-        self._users: Dict[str, Dict] = {}
-        self._users_by_email: Dict[str, str] = {}  # email -> user_id
-        self._passwords: Dict[str, str] = {}  # user_id -> hashed_password
-        self._api_keys: Dict[str, str] = {}  # hashed_api_key -> user_id
+        # Create async engine for PostgreSQL
+        self.engine = create_async_engine(
+            settings.database.postgres_url,
+            echo=False,
+            pool_pre_ping=True,
+            pool_size=5,
+            max_overflow=10
+        )
 
-        # Créer un utilisateur admin par défaut
-        self._create_default_admin()
+        # Create async session factory
+        self.SessionLocal = async_sessionmaker(
+            self.engine,
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
 
-    def _create_default_admin(self):
+        logger.info("[UserService] Service PostgreSQL initialisé")
+
+    async def init_db(self):
+        """Initialize database and create default admin if needed"""
+        async with self.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        # Create default admin if no users exist
+        await self._create_default_admin()
+
+    async def _create_default_admin(self):
         """Crée un compte admin par défaut si aucun n'existe"""
-        if not self._users:
+        async with self.SessionLocal() as session:
+            # Check if any users exist
+            result = await session.execute(select(UserDB).limit(1))
+            if result.scalar_one_or_none() is not None:
+                return  # Users already exist
+
             admin_id = str(uuid.uuid4())
             now = datetime.utcnow()
 
-            admin_data = {
-                "id": admin_id,
-                "email": "admin@agenticai.dev",
-                "username": "admin",
-                "full_name": "Administrator",
-                "role": UserRole.ADMIN.value,
-                "status": UserStatus.ACTIVE.value,
-                "created_at": now.isoformat(),
-                "updated_at": now.isoformat(),
-                "last_login": None,
-                "max_agents": 1000,
-                "max_documents": 10000,
-                "max_storage_mb": 50000,
-                "default_model": "qwen2.5:14b",
-                "language": "fr",
-                "timezone": "UTC"
-            }
+            admin = UserDB(
+                id=admin_id,
+                email="admin@agenticai.dev",
+                username="admin",
+                hashed_password=self.auth_service.hash_password("admin123"),
+                full_name="Administrator",
+                role=UserRole.ADMIN,
+                status=UserStatus.ACTIVE,
+                created_at=now,
+                updated_at=now,
+                max_agents=1000,
+                max_documents=10000,
+                max_storage_mb=50000,
+                default_model="qwen2.5:14b",
+                language="fr",
+                timezone="UTC"
+            )
 
-            self._users[admin_id] = admin_data
-            self._users_by_email["admin@agenticai.dev"] = admin_id
-            self._passwords[admin_id] = self.auth_service.hash_password("admin123")
+            session.add(admin)
+            await session.commit()
 
             logger.info(f"[UserService] Admin par défaut créé: admin@agenticai.dev / admin123")
 
@@ -76,43 +101,47 @@ class UserService:
         Raises:
             ValueError: Si l'email existe déjà
         """
-        # Vérifier si l'email existe déjà
-        if user_create.email in self._users_by_email:
-            raise ValueError(f"Email {user_create.email} déjà utilisé")
+        async with self.SessionLocal() as session:
+            user_id = str(uuid.uuid4())
+            now = datetime.utcnow()
 
-        # Générer un ID unique
-        user_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+            hashed_password = self.auth_service.hash_password(user_create.password)
 
-        # Hasher le mot de passe
-        hashed_password = self.auth_service.hash_password(user_create.password)
+            user_db = UserDB(
+                id=user_id,
+                email=user_create.email,
+                username=user_create.username,
+                hashed_password=hashed_password,
+                full_name=user_create.full_name,
+                role=UserRole.USER,
+                status=UserStatus.ACTIVE,
+                created_at=now,
+                updated_at=now,
+                max_agents=50,
+                max_documents=1000,
+                max_storage_mb=5000,
+                default_model="qwen2.5:14b",
+                language="fr",
+                timezone="UTC"
+            )
 
-        # Créer l'utilisateur
-        user_data = {
-            "id": user_id,
-            "email": user_create.email,
-            "username": user_create.username,
-            "full_name": user_create.full_name,
-            "role": UserRole.USER.value,
-            "status": UserStatus.ACTIVE.value,
-            "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-            "last_login": None,
-            "max_agents": 50,
-            "max_documents": 1000,
-            "max_storage_mb": 5000,
-            "default_model": "qwen2.5:14b",
-            "language": "fr",
-            "timezone": "UTC"
-        }
+            session.add(user_db)
 
-        self._users[user_id] = user_data
-        self._users_by_email[user_create.email] = user_id
-        self._passwords[user_id] = hashed_password
+            try:
+                await session.commit()
+                await session.refresh(user_db)
+            except IntegrityError as e:
+                await session.rollback()
+                if "email" in str(e):
+                    raise ValueError(f"Email {user_create.email} déjà utilisé")
+                elif "username" in str(e):
+                    raise ValueError(f"Username {user_create.username} déjà utilisé")
+                else:
+                    raise ValueError(f"Erreur lors de la création de l'utilisateur: {e}")
 
-        logger.info(f"[UserService] Utilisateur créé: {user_create.email} (id={user_id})")
+            logger.info(f"[UserService] Utilisateur créé: {user_create.email} (id={user_id})")
 
-        return User(**user_data)
+            return self._user_db_to_model(user_db)
 
     async def get_user(self, user_id: str) -> Optional[User]:
         """
@@ -124,11 +153,16 @@ class UserService:
         Returns:
             Utilisateur ou None si non trouvé
         """
-        user_data = self._users.get(user_id)
-        if not user_data:
-            return None
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(UserDB).where(UserDB.id == user_id)
+            )
+            user_db = result.scalar_one_or_none()
 
-        return User(**user_data)
+            if not user_db:
+                return None
+
+            return self._user_db_to_model(user_db)
 
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """
@@ -140,11 +174,16 @@ class UserService:
         Returns:
             Utilisateur ou None si non trouvé
         """
-        user_id = self._users_by_email.get(email)
-        if not user_id:
-            return None
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(UserDB).where(UserDB.email == email)
+            )
+            user_db = result.scalar_one_or_none()
 
-        return await self.get_user(user_id)
+            if not user_db:
+                return None
+
+            return self._user_db_to_model(user_db)
 
     async def authenticate(self, email: str, password: str) -> Optional[User]:
         """
@@ -157,30 +196,32 @@ class UserService:
         Returns:
             Utilisateur si authentification réussie, None sinon
         """
-        user = await self.get_user_by_email(email)
-        if not user:
-            logger.warning(f"[UserService] Utilisateur non trouvé: {email}")
-            return None
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(UserDB).where(UserDB.email == email)
+            )
+            user_db = result.scalar_one_or_none()
 
-        if user.status != UserStatus.ACTIVE:
-            logger.warning(f"[UserService] Compte inactif: {email}")
-            return None
+            if not user_db:
+                logger.warning(f"[UserService] Utilisateur non trouvé: {email}")
+                return None
 
-        hashed_password = self._passwords.get(user.id)
-        if not hashed_password:
-            return None
+            if user_db.status != UserStatus.ACTIVE:
+                logger.warning(f"[UserService] Compte inactif: {email}")
+                return None
 
-        if not self.auth_service.verify_password(password, hashed_password):
-            logger.warning(f"[UserService] Mot de passe incorrect: {email}")
-            return None
+            if not self.auth_service.verify_password(password, user_db.hashed_password):
+                logger.warning(f"[UserService] Mot de passe incorrect: {email}")
+                return None
 
-        # Mettre à jour last_login
-        user_data = self._users[user.id]
-        user_data["last_login"] = datetime.utcnow().isoformat()
+            # Mettre à jour last_login
+            user_db.last_login = datetime.utcnow()
+            await session.commit()
+            await session.refresh(user_db)
 
-        logger.info(f"[UserService] Authentification réussie: {email}")
+            logger.info(f"[UserService] Authentification réussie: {email}")
 
-        return User(**user_data)
+            return self._user_db_to_model(user_db)
 
     async def update_user(self, user_id: str, user_update: UserUpdate) -> Optional[User]:
         """
@@ -193,18 +234,28 @@ class UserService:
         Returns:
             Utilisateur mis à jour ou None si non trouvé
         """
-        user_data = self._users.get(user_id)
-        if not user_data:
-            return None
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(UserDB).where(UserDB.id == user_id)
+            )
+            user_db = result.scalar_one_or_none()
 
-        # Mettre à jour les champs fournis
-        update_data = user_update.model_dump(exclude_unset=True)
-        user_data.update(update_data)
-        user_data["updated_at"] = datetime.utcnow().isoformat()
+            if not user_db:
+                return None
 
-        logger.info(f"[UserService] Utilisateur mis à jour: {user_id}")
+            # Mettre à jour les champs fournis
+            update_data = user_update.model_dump(exclude_unset=True)
+            for field, value in update_data.items():
+                setattr(user_db, field, value)
 
-        return User(**user_data)
+            user_db.updated_at = datetime.utcnow()
+
+            await session.commit()
+            await session.refresh(user_db)
+
+            logger.info(f"[UserService] Utilisateur mis à jour: {user_id}")
+
+            return self._user_db_to_model(user_db)
 
     async def delete_user(self, user_id: str) -> bool:
         """
@@ -216,21 +267,21 @@ class UserService:
         Returns:
             True si supprimé, False si non trouvé
         """
-        user_data = self._users.get(user_id)
-        if not user_data:
-            return False
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(UserDB).where(UserDB.id == user_id)
+            )
+            user_db = result.scalar_one_or_none()
 
-        email = user_data["email"]
+            if not user_db:
+                return False
 
-        # Supprimer de tous les dictionnaires
-        del self._users[user_id]
-        del self._users_by_email[email]
-        if user_id in self._passwords:
-            del self._passwords[user_id]
+            await session.delete(user_db)
+            await session.commit()
 
-        logger.info(f"[UserService] Utilisateur supprimé: {user_id}")
+            logger.info(f"[UserService] Utilisateur supprimé: {user_id}")
 
-        return True
+            return True
 
     async def list_users(
         self,
@@ -249,37 +300,60 @@ class UserService:
         Returns:
             Liste d'utilisateurs
         """
-        users = []
+        async with self.SessionLocal() as session:
+            query = select(UserDB)
 
-        for user_data in self._users.values():
-            if role and user_data["role"] != role.value:
-                continue
-            users.append(User(**user_data))
+            if role:
+                query = query.where(UserDB.role == role)
 
-        # Pagination
-        return users[skip:skip + limit]
+            query = query.offset(skip).limit(limit)
 
-    async def create_api_key(self, user_id: str) -> Optional[str]:
+            result = await session.execute(query)
+            users_db = result.scalars().all()
+
+            return [self._user_db_to_model(user_db) for user_db in users_db]
+
+    async def create_api_key(self, user_id: str, name: Optional[str] = None) -> Optional[str]:
         """
         Génère une clé API pour un utilisateur.
 
         Args:
             user_id: ID de l'utilisateur
+            name: Nom de la clé API (optionnel)
 
         Returns:
             Clé API ou None si utilisateur non trouvé
         """
-        if user_id not in self._users:
-            return None
+        async with self.SessionLocal() as session:
+            # Vérifier que l'utilisateur existe
+            result = await session.execute(
+                select(UserDB).where(UserDB.id == user_id)
+            )
+            user_db = result.scalar_one_or_none()
 
-        api_key = self.auth_service.generate_api_key(user_id)
-        api_key_hash = self.auth_service.hash_api_key(api_key)
+            if not user_db:
+                return None
 
-        self._api_keys[api_key_hash] = user_id
+            # Générer la clé API
+            api_key = self.auth_service.generate_api_key(user_id)
+            api_key_hash = self.auth_service.hash_api_key(api_key)
 
-        logger.info(f"[UserService] Clé API créée pour user_id={user_id}")
+            # Créer l'entrée en base
+            api_key_db = APIKeyDB(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                key_hash=api_key_hash,
+                name=name,
+                is_active=True,
+                created_at=datetime.utcnow()
+            )
 
-        return api_key
+            session.add(api_key_db)
+            await session.commit()
+
+            logger.info(f"[UserService] Clé API créée pour user_id={user_id}")
+
+            return api_key
 
     async def verify_api_key(self, api_key: str) -> Optional[User]:
         """
@@ -291,13 +365,28 @@ class UserService:
         Returns:
             Utilisateur si clé valide, None sinon
         """
-        api_key_hash = self.auth_service.hash_api_key(api_key)
-        user_id = self._api_keys.get(api_key_hash)
+        async with self.SessionLocal() as session:
+            api_key_hash = self.auth_service.hash_api_key(api_key)
 
-        if not user_id:
-            return None
+            result = await session.execute(
+                select(APIKeyDB).where(
+                    and_(
+                        APIKeyDB.key_hash == api_key_hash,
+                        APIKeyDB.is_active == True
+                    )
+                )
+            )
+            api_key_db = result.scalar_one_or_none()
 
-        return await self.get_user(user_id)
+            if not api_key_db:
+                return None
+
+            # Mettre à jour last_used_at
+            api_key_db.last_used_at = datetime.utcnow()
+            await session.commit()
+
+            # Récupérer l'utilisateur
+            return await self.get_user(api_key_db.user_id)
 
     async def get_user_stats(self, user_id: str) -> Optional[UserStats]:
         """
@@ -309,15 +398,42 @@ class UserService:
         Returns:
             Statistiques ou None si utilisateur non trouvé
         """
-        if user_id not in self._users:
-            return None
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(UserDB).where(UserDB.id == user_id)
+            )
+            user_db = result.scalar_one_or_none()
 
-        # TODO: Calculer les vraies statistiques depuis la DB
-        return UserStats(
-            user_id=user_id,
-            agents_count=0,
-            documents_count=0,
-            storage_used_mb=0.0,
-            total_queries=0,
-            last_activity=None
+            if not user_db:
+                return None
+
+            # TODO: Calculer les vraies statistiques depuis la DB
+            # Pour l'instant, retourner des valeurs par défaut
+            return UserStats(
+                user_id=user_id,
+                agents_count=0,
+                documents_count=0,
+                storage_used_mb=0.0,
+                total_queries=0,
+                last_activity=user_db.last_login
+            )
+
+    def _user_db_to_model(self, user_db: UserDB) -> User:
+        """Convert UserDB to User model"""
+        return User(
+            id=user_db.id,
+            email=user_db.email,
+            username=user_db.username,
+            full_name=user_db.full_name,
+            role=user_db.role,
+            status=user_db.status,
+            created_at=user_db.created_at.isoformat() if user_db.created_at else None,
+            updated_at=user_db.updated_at.isoformat() if user_db.updated_at else None,
+            last_login=user_db.last_login.isoformat() if user_db.last_login else None,
+            max_agents=user_db.max_agents,
+            max_documents=user_db.max_documents,
+            max_storage_mb=user_db.max_storage_mb,
+            default_model=user_db.default_model,
+            language=user_db.language,
+            timezone=user_db.timezone
         )

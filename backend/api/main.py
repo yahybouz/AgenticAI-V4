@@ -44,9 +44,17 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 AgenticAI V4 - Démarrage")
+
+    # Initialize database and create default admin
+    user_service = dependencies.get_user_service()
+    await user_service.init_db()
+    logger.info("✅ Base de données initialisée")
+
+    # Initialize agents and orchestrator
     seed_default_agents()
     dependencies.get_master_orchestrator()
     logger.info("✅ Système prêt")
+
     yield
     logger.info("🛑 AgenticAI V4 - Arrêt")
 
