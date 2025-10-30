@@ -1,0 +1,319 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # OLLAMA - LLM Local
+  # ============================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agenticai-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # POSTGRESQL - Base de données principale
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: agenticai-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: agenticai
+      POSTGRES_PASSWORD: agenticai_password_2025
+      POSTGRES_DB: agenticai
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=fr_FR.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agenticai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # QDRANT - Vector Database
+  # ============================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: agenticai-qdrant
+    ports:
+      - "6333:6333"  # HTTP API
+      - "6334:6334"  # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__SERVICE__HTTP_PORT=6333
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # REDIS - Cache & Event Bus
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: agenticai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # MINIO - Object Storage (audio, docs)
+  # ============================================
+  minio:
+    image: minio/minio:latest
+    container_name: agenticai-minio
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    environment:
+      MINIO_ROOT_USER: agenticai
+      MINIO_ROOT_PASSWORD: agenticai_minio_2025
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # CELERY WORKER - Tâches asynchrones
+  # ============================================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agenticai-celery-worker
+    command: celery -A workers.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      - POSTGRES_URL=postgresql://agenticai:agenticai_password_2025@postgres:5432/agenticai
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - QDRANT_URL=http://qdrant:6333
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=agenticai
+      - MINIO_SECRET_KEY=agenticai_minio_2025
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+      - ollama
+      - qdrant
+      - minio
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # CELERY BEAT - Tâches planifiées
+  # ============================================
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agenticai-celery-beat
+    command: celery -A workers.celery_app beat --loglevel=info
+    environment:
+      - POSTGRES_URL=postgresql://agenticai:agenticai_password_2025@postgres:5432/agenticai
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # BACKEND API - FastAPI
+  # ============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agenticai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_URL=postgresql://agenticai:agenticai_password_2025@postgres:5432/agenticai
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - QDRANT_URL=http://qdrant:6333
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=agenticai
+      - MINIO_SECRET_KEY=agenticai_minio_2025
+      - SECRET_KEY=agenticai_secret_key_2025_change_me
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+    volumes:
+      - ./backend:/app
+      - ./config:/config
+    depends_on:
+      - postgres
+      - redis
+      - ollama
+      - qdrant
+      - minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # FRONTEND - Next.js
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: agenticai-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # JAEGER - Distributed Tracing
+  # ============================================
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: agenticai-jaeger
+    ports:
+      - "5775:5775/udp"  # Agent zipkin.thrift
+      - "6831:6831/udp"  # Agent jaeger.thrift
+      - "6832:6832/udp"  # Agent binary thrift
+      - "5778:5778"      # Agent config
+      - "16686:16686"    # UI
+      - "14268:14268"    # Collector HTTP
+      - "14250:14250"    # Collector gRPC
+      - "9411:9411"      # Zipkin compatible
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # PROMETHEUS - Metrics
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agenticai-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+  # ============================================
+  # GRAFANA - Dashboards
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agenticai-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - agenticai-network
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  ollama_data:
+    driver: local
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  agenticai-network:
+    driver: bridge

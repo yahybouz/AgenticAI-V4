@@ -1,0 +1,584 @@
+# ============================================
+# REGISTRY DES AGENTS - AgenticAI V4
+# ============================================
+# Définition de tous les agents disponibles
+# avec leurs capacités, modèles, et contraintes
+
+version: "1.0"
+updated: "2025-01-26"
+
+# ============================================
+# DOMAINE: VOICE (Voix)
+# ============================================
+agents:
+  # Capture audio
+  voice.capture:
+    name: "Voice Capture"
+    domain: "voice"
+    description: "Capture audio depuis micro ou loopback système"
+    skills:
+      - audio_capture
+      - vad
+      - noise_reduction
+    input: audio_device
+    output: audio_stream
+    latency_ms: 50
+    cost: low
+    models: []
+    config:
+      sample_rate: 16000
+      channels: 1
+      chunk_duration_ms: 100
+      vad_enabled: true
+
+  # Transcription
+  voice.transcribe:
+    name: "Voice Transcribe"
+    domain: "voice"
+    description: "Transcription audio via Whisper local"
+    skills:
+      - speech_to_text
+      - multilingual
+      - timestamping
+    input: audio_stream
+    output: transcript_text
+    latency_ms: 2000
+    cost: high
+    models:
+      - name: whisper
+        version: "large-v3"
+        provider: ollama
+    config:
+      language: auto
+      task: transcribe
+      beam_size: 5
+      best_of: 5
+      temperature: 0.0
+
+  # Traduction
+  voice.translate:
+    name: "Voice Translate"
+    domain: "voice"
+    description: "Traduction texte via LLM local"
+    skills:
+      - translation
+      - multilingual
+      - context_aware
+    input: transcript_text
+    output: translated_text
+    latency_ms: 1000
+    cost: medium
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      target_language: fr
+      preserve_formatting: true
+      glossary_enabled: true
+
+  # Q&A Live
+  voice.qa:
+    name: "Voice Q&A"
+    domain: "voice"
+    description: "Réponses questions sur transcript live via RAG"
+    skills:
+      - question_answering
+      - rag
+      - citation
+    input: [transcript_text, question]
+    output: answer_with_citations
+    latency_ms: 2000
+    cost: high
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+      - name: nomic-embed-text
+        version: latest
+        provider: ollama
+    config:
+      top_k: 5
+      context_window: 4096
+      citation_required: true
+
+# ============================================
+# DOMAINE: MAIL (E-mail)
+# ============================================
+  # Ingestion e-mails
+  mail.ingest:
+    name: "Mail Ingest"
+    domain: "mail"
+    description: "Connexion Gmail/Outlook via OAuth, récupération threads"
+    skills:
+      - oauth2
+      - gmail_api
+      - outlook_api
+      - metadata_extraction
+    input: account_credentials
+    output: email_threads
+    latency_ms: 500
+    cost: low
+    models: []
+    config:
+      scopes:
+        gmail:
+          - "https://www.googleapis.com/auth/gmail.readonly"
+          - "https://www.googleapis.com/auth/gmail.send"
+        outlook:
+          - "Mail.Read"
+          - "Mail.Send"
+      batch_size: 50
+      poll_interval_seconds: 300
+
+  # Classification
+  mail.classify:
+    name: "Mail Classify"
+    domain: "mail"
+    description: "Classification priorité, thème, sentiment"
+    skills:
+      - classification
+      - priority_detection
+      - theme_extraction
+    input: email_thread
+    output: classification_labels
+    latency_ms: 500
+    cost: medium
+    models:
+      - name: phi4
+        version: latest
+        provider: ollama
+    config:
+      categories:
+        - urgent
+        - important
+        - normal
+        - low
+      themes:
+        - finance
+        - technique
+        - admin
+        - commercial
+        - rh
+
+  # Synthèse
+  mail.summarize:
+    name: "Mail Summarize"
+    domain: "mail"
+    description: "Résumé threads avec bullets + risques + next steps"
+    skills:
+      - summarization
+      - risk_extraction
+      - action_items
+    input: email_thread
+    output: summary_structured
+    latency_ms: 3000
+    cost: high
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      max_bullets: 10
+      include_risks: true
+      include_next_steps: true
+      tone: professional
+
+  # Rédaction
+  mail.reply_draft:
+    name: "Mail Reply Draft"
+    domain: "mail"
+    description: "Rédaction brouillon réponse e-mail"
+    skills:
+      - email_writing
+      - tone_adaptation
+      - context_aware
+    input: [email_thread, reply_instructions]
+    output: draft_email
+    latency_ms: 2000
+    cost: medium
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      tone: professional
+      length: medium
+      include_greeting: true
+      include_signature: true
+
+  # Envoi
+  mail.send:
+    name: "Mail Send"
+    domain: "mail"
+    description: "Envoi e-mail avec validation HITL"
+    skills:
+      - email_sending
+      - validation
+      - audit_trail
+    input: draft_email
+    output: sent_confirmation
+    latency_ms: 500
+    cost: low
+    models: []
+    config:
+      require_human_approval: true
+      auto_send_categories: []
+      max_daily_sends: 100
+
+# ============================================
+# DOMAINE: RAG (Recherche)
+# ============================================
+  # Indexation
+  rag.indexer:
+    name: "RAG Indexer"
+    domain: "rag"
+    description: "Chunking + embeddings + indexation Qdrant"
+    skills:
+      - text_chunking
+      - embedding_generation
+      - vector_indexing
+    input: documents
+    output: indexed_vectors
+    latency_ms: 5000
+    cost: high
+    models:
+      - name: nomic-embed-text
+        version: latest
+        provider: ollama
+    config:
+      chunk_size: 800
+      chunk_overlap: 120
+      collection_name: agenticai_default
+      distance_metric: cosine
+
+  # Recherche
+  rag.searcher:
+    name: "RAG Searcher"
+    domain: "rag"
+    description: "Recherche hybride BM25 + vecteurs"
+    skills:
+      - semantic_search
+      - keyword_search
+      - hybrid_ranking
+    input: query
+    output: relevant_chunks
+    latency_ms: 200
+    cost: medium
+    models:
+      - name: nomic-embed-text
+        version: latest
+        provider: ollama
+    config:
+      top_k: 10
+      alpha: 0.7  # Balance semantic vs keyword
+      rerank: true
+
+  # Citation
+  rag.citation:
+    name: "RAG Citation"
+    domain: "rag"
+    description: "Extraction citations avec sources et timestamps"
+    skills:
+      - source_attribution
+      - quote_extraction
+      - confidence_scoring
+    input: [answer, chunks]
+    output: citations
+    latency_ms: 100
+    cost: low
+    models: []
+    config:
+      min_confidence: 0.7
+      max_citations_per_answer: 5
+      include_snippets: true
+
+# ============================================
+# DOMAINE: COACH (Santé)
+# ============================================
+  # Ingestion logs
+  coach.log_ingest:
+    name: "Coach Log Ingest"
+    domain: "coach"
+    description: "Parsing messages WhatsApp santé (kcal, poids, activité)"
+    skills:
+      - natural_language_parsing
+      - entity_extraction
+      - unit_conversion
+    input: whatsapp_message
+    output: health_log_entry
+    latency_ms: 200
+    cost: low
+    models:
+      - name: phi4
+        version: latest
+        provider: ollama
+    config:
+      supported_units:
+        - kcal
+        - kg
+        - km
+        - minutes
+      default_timezone: "Europe/Paris"
+
+  # Analyse
+  coach.analyst:
+    name: "Coach Analyst"
+    domain: "coach"
+    description: "Calculs bilan kcal, déficit/surplus, tendances poids"
+    skills:
+      - statistical_analysis
+      - trend_detection
+      - goal_tracking
+    input: health_logs
+    output: analysis_report
+    latency_ms: 500
+    cost: low
+    models: []
+    config:
+      deficit_target_daily: -500
+      surplus_alert_threshold: 500
+      weight_stall_days: 10
+      smoothing_window_days: 7
+
+  # Rapporteur
+  coach.reporter:
+    name: "Coach Reporter"
+    domain: "coach"
+    description: "Génération rapports quotidien/hebdo/mensuel"
+    skills:
+      - report_generation
+      - visualization
+      - recommendations
+    input: analysis_report
+    output: formatted_report
+    latency_ms: 1000
+    cost: medium
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      include_charts: true
+      include_recommendations: true
+      tone: encouraging
+
+# ============================================
+# DOMAINE: WRITER (Rédaction)
+# ============================================
+  # Rédaction académique
+  writer.academic:
+    name: "Writer Academic"
+    domain: "writer"
+    description: "Rédaction mémoires, rapports, thèses"
+    skills:
+      - academic_writing
+      - structure_planning
+      - citation_formatting
+    input: [outline, research_notes]
+    output: academic_document
+    latency_ms: 10000
+    cost: very_high
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      style: academic
+      citation_format: apa
+      max_length_words: 50000
+      include_references: true
+
+  # Compte rendu
+  writer.cr:
+    name: "Writer CR"
+    domain: "writer"
+    description: "Génération comptes rendus réunion"
+    skills:
+      - meeting_minutes
+      - action_items
+      - decision_tracking
+    input: [transcript, template]
+    output: meeting_report
+    latency_ms: 3000
+    cost: medium
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      sections:
+        - contexte
+        - decisions
+        - actions
+        - risques
+      export_formats:
+        - markdown
+        - pdf
+        - docx
+
+# ============================================
+# DOMAINE: REVIEWER (Relecture)
+# ============================================
+  # Détection hallucinations
+  reviewer.hallucination:
+    name: "Reviewer Hallucination"
+    domain: "reviewer"
+    description: "Détection incohérences et hallucinations"
+    skills:
+      - fact_checking
+      - consistency_verification
+      - confidence_estimation
+    input: document
+    output: hallucination_report
+    latency_ms: 5000
+    cost: high
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      check_internal_consistency: true
+      check_external_facts: true
+      min_confidence_threshold: 0.8
+
+  # Vérification citations
+  reviewer.citation:
+    name: "Reviewer Citation"
+    domain: "reviewer"
+    description: "Vérification format et existence références"
+    skills:
+      - citation_validation
+      - format_checking
+      - doi_lookup
+    input: document
+    output: citation_report
+    latency_ms: 2000
+    cost: medium
+    models:
+      - name: phi4
+        version: latest
+        provider: ollama
+    config:
+      citation_formats:
+        - apa
+        - ieee
+        - chicago
+      check_doi: true
+      check_isbn: true
+
+  # Style académique
+  reviewer.style:
+    name: "Reviewer Style"
+    domain: "reviewer"
+    description: "Vérification conformité style académique"
+    skills:
+      - style_checking
+      - grammar_verification
+      - tone_analysis
+    input: document
+    output: style_report
+    latency_ms: 3000
+    cost: medium
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      style_guides:
+        - apa
+        - ieee
+        - nature
+      check_passive_voice: true
+      check_sentence_length: true
+
+# ============================================
+# DOMAINE: WEB (Internet)
+# ============================================
+  # Recherche web
+  web.search:
+    name: "Web Search"
+    domain: "web"
+    description: "Recherche multi-moteurs (DuckDuckGo, Brave, SearxNG)"
+    skills:
+      - web_search
+      - result_aggregation
+      - relevance_ranking
+    input: query
+    output: search_results
+    latency_ms: 2000
+    cost: low
+    models: []
+    config:
+      engines:
+        - duckduckgo
+        - brave
+        - searxng_local
+      max_results: 20
+      deduplicate: true
+
+  # Scraping
+  web.scraper:
+    name: "Web Scraper"
+    domain: "web"
+    description: "Extraction contenu propre de pages web"
+    skills:
+      - html_parsing
+      - content_extraction
+      - cleaning
+    input: url
+    output: clean_text
+    latency_ms: 3000
+    cost: medium
+    models: []
+    config:
+      extract_main_content: true
+      remove_ads: true
+      remove_navigation: true
+      preserve_links: true
+
+  # Fact-checking
+  web.fact_checker:
+    name: "Web Fact Checker"
+    domain: "web"
+    description: "Vérification faits via sources multiples"
+    skills:
+      - fact_verification
+      - source_comparison
+      - confidence_scoring
+    input: claim
+    output: verification_report
+    latency_ms: 5000
+    cost: high
+    models:
+      - name: qwen2.5
+        version: "14b"
+        provider: ollama
+    config:
+      min_sources: 3
+      trusted_sources:
+        - wikipedia.org
+        - .gov
+        - .edu
+      confidence_threshold: 0.7
+
+  # Veille
+  web.monitor:
+    name: "Web Monitor"
+    domain: "web"
+    description: "Surveillance sites/requêtes, alertes changements"
+    skills:
+      - change_detection
+      - scheduled_monitoring
+      - alerting
+    input: monitor_config
+    output: change_alerts
+    latency_ms: 1000
+    cost: low
+    models: []
+    config:
+      check_interval_minutes: 60
+      diff_threshold: 0.1
+      alert_channels:
+        - email
+        - webhook
