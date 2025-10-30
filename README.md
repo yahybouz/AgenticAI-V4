@@ -191,8 +191,11 @@ Quand l'application est lancée :
 # Activer l'environnement virtuel
 source .venv/bin/activate
 
-# Tester le système d'authentification
+# Tester le système d'authentification (in-memory)
 python scripts/test_auth.py
+
+# Tester le système d'authentification avec PostgreSQL
+python scripts/test_postgres_auth.py
 
 # Tester le système RAG
 python scripts/test_enhanced_rag.py
@@ -200,6 +203,50 @@ python scripts/test_enhanced_rag.py
 # Tester les routes protégées (nécessite l'API en cours d'exécution)
 ./scripts/test_protected_routes.sh
 ```
+
+## 🗄️ Migrations de base de données
+
+Le système utilise Alembic pour gérer les migrations PostgreSQL.
+
+### Voir les migrations disponibles
+```bash
+cd backend
+alembic history
+```
+
+### Appliquer les migrations
+```bash
+cd backend
+alembic upgrade head
+```
+
+### Créer une nouvelle migration (après modification des modèles)
+```bash
+cd backend
+# Auto-générer depuis les modèles SQLAlchemy
+alembic revision --autogenerate -m "Description de la migration"
+
+# Ou créer manuellement
+alembic revision -m "Description de la migration"
+```
+
+### Revenir en arrière
+```bash
+cd backend
+# Revenir à la migration précédente
+alembic downgrade -1
+
+# Revenir au début
+alembic downgrade base
+```
+
+### État actuel
+```bash
+cd backend
+alembic current
+```
+
+**Note :** Les migrations sont automatiquement appliquées au démarrage de l'application via `user_service.init_db()`.
 
 ## 🐛 Troubleshooting
 
