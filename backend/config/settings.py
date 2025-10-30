@@ -47,6 +47,9 @@ class SecurityConfig(BaseModel):
     rbac_enabled: bool = True
     audit_trail_enabled: bool = True
     vault_addr: str | None = "http://localhost:8200"
+    secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
 
 
 class AppSettings(BaseSettings):
@@ -105,6 +108,11 @@ class AppSettings(BaseSettings):
         case_sensitive=False,
         extra="ignore",  # Ignorer les variables d'environnement inconnues
     )
+
+    @property
+    def SECRET_KEY(self) -> str:
+        """Clé secrète pour JWT depuis la config de sécurité"""
+        return self.security.secret_key
 
 
 @lru_cache

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from api import dependencies
 from api.routes import (
     agents,
+    auth,
     coach,
     docs,
     documents,
@@ -68,6 +69,7 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+app.include_router(auth.router)
 app.include_router(voice.router)
 app.include_router(mail.router)
 app.include_router(rag.router)
