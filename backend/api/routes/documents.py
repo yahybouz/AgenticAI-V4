@@ -2,13 +2,16 @@
 Routes API pour la gestion des documents RAG
 """
 
-from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from typing import List, Optional, Dict, Any, Annotated
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
 
 import logging
 import tempfile
 from pathlib import Path
+
+from models.user import User
+from api.dependencies import get_current_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,7 @@ class CacheStatsResponse(BaseModel):
 
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
+    current_user: Annotated[User, Depends(get_current_active_user)],
     file: UploadFile = File(...),
     metadata: Optional[str] = None,
     collection_name: str = "documents"
@@ -105,11 +109,17 @@ async def upload_document(
     Upload et indexe un document.
 
     Supporte: PDF, DOCX, TXT, MD, HTML
+
+    Requiert authentification. Le document sera associé à l'utilisateur courant.
     """
     try:
         # Parser métadonnées JSON si fourni
         import json
         meta = json.loads(metadata) if metadata else {}
+
+        # Ajouter user_id aux métadonnées
+        meta["user_id"] = current_user.id
+        meta["username"] = current_user.username
 
         # Sauvegarder temporairement le fichier
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
@@ -219,13 +229,18 @@ async def load_directory(
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search_documents(payload: SearchRequest):
+async def search_documents(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    payload: SearchRequest
+):
     """
     Recherche sémantique dans les documents indexés.
 
     Options:
     - Cache automatique des résultats
     - Reranking optionnel pour meilleure pertinence
+
+    Requiert authentification. Recherche uniquement dans les documents de l'utilisateur.
     """
     try:
         from services.ollama import OllamaService
@@ -239,6 +254,10 @@ async def search_documents(payload: SearchRequest):
         ollama = OllamaService()
         vector_store = VectorStoreService()
         cache = SearchCacheService()
+
+        # Ajouter le filtre user_id
+        filters = payload.filters or {}
+        filters["user_id"] = current_user.id
 
         # Searcher avec cache
         searcher = RAGCachedSearcherAgent(
@@ -254,7 +273,7 @@ async def search_documents(payload: SearchRequest):
             input={
                 "query": payload.query,
                 "top_k": payload.top_k,
-                "filters": payload.filters or {},
+                "filters": filters,  # Utilise les filtres avec user_id
                 "use_cache": payload.use_cache,
             }
         )
@@ -309,8 +328,14 @@ async def search_documents(payload: SearchRequest):
 
 
 @router.get("/cache/stats", response_model=CacheStatsResponse)
-async def get_cache_stats():
-    """Retourne les statistiques du cache de recherche"""
+async def get_cache_stats(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Retourne les statistiques du cache de recherche.
+
+    Requiert authentification.
+    """
     try:
         from services.search_cache import SearchCacheService
 
@@ -325,8 +350,14 @@ async def get_cache_stats():
 
 
 @router.post("/cache/clear")
-async def clear_cache():
-    """Vide complètement le cache de recherche"""
+async def clear_cache(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Vide complètement le cache de recherche.
+
+    Requiert authentification.
+    """
     try:
         from services.search_cache import SearchCacheService
 
