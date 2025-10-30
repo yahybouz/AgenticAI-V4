@@ -79,6 +79,11 @@ out/
 .dmypy.json
 dmypy.json
 
+# Data directories
+data/
+qdrant_storage/
+postgres_data/
+
 # Misc
 *.bak
 *.tmp
