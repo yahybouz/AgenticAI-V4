@@ -19,6 +19,7 @@ Ce script installe automatiquement :
 - ✅ Ollama + modèles (`qwen2.5:14b`, `nomic-embed-text`)
 - ✅ Environnement virtuel Python
 - ✅ Toutes les dépendances backend
+- ✅ Dépendances frontend (React + Node.js)
 
 ### Lancer l'application
 
@@ -27,9 +28,10 @@ Ce script installe automatiquement :
 ```
 
 Le script démarre automatiquement :
-- Ollama (LLM local)
-- Services Docker (Qdrant, PostgreSQL, Redis)
-- Backend FastAPI
+- 🌐 Frontend React (http://localhost:3000)
+- 🔧 Backend FastAPI (http://localhost:8000)
+- 🤖 Ollama (LLM local)
+- 🗄️ Services Docker (Qdrant, PostgreSQL, Redis)
 
 ### Arrêter l'application
 
@@ -71,7 +73,29 @@ Le script démarre automatiquement :
 - **Reranking LLM** - Meilleure pertinence
 - **Isolation par utilisateur** - Documents privés par défaut
 
+### 🎨 Interface Web
+- **Dashboard** - Vue d'ensemble avec statistiques temps réel
+- **Gestion des agents** - Créer, lister, supprimer des agents
+- **Gestion des documents** - Upload, recherche sémantique, suppression
+- **Chat** - Interface de conversation avec les agents
+- **Design moderne** - Responsive (mobile/tablet/desktop)
+- **Tailwind CSS** - UI components élégants
+
 ## 🔧 Utilisation
+
+### Interface Web
+
+Ouvrez votre navigateur sur **http://localhost:3000**
+
+Connexion par défaut :
+- Email: `admin@agenticai.dev`
+- Mot de passe: `admin123`
+
+Pages disponibles :
+- `/dashboard` - Vue d'ensemble
+- `/agents` - Gestion des agents
+- `/documents` - Upload et recherche
+- `/chat` - Interface de chat
 
 ### API Documentation
 - **Swagger UI** : http://localhost:8000/docs
@@ -154,20 +178,38 @@ curl -X POST "http://localhost:8000/api/agents/" \
 
 ```
 AgenticAI-V4/
+├── frontend/           # Interface React
+│   ├── src/
+│   │   ├── pages/      # Pages (Dashboard, Agents, Documents, Chat)
+│   │   ├── components/ # Composants réutilisables
+│   │   ├── services/   # API client
+│   │   ├── store/      # State management (Zustand)
+│   │   └── types/      # TypeScript types
+│   └── package.json
 ├── backend/
-│   ├── agents/          # Agents spécialisés
-│   ├── api/             # Routes FastAPI
-│   ├── services/        # Services métier
-│   └── models/          # Modèles Pydantic
-├── scripts/             # Scripts utilitaires
-├── setup.sh             # Installation
-├── run.sh               # Lancement
-└── stop.sh              # Arrêt
+│   ├── agents/         # Agents spécialisés
+│   ├── api/            # Routes FastAPI
+│   ├── services/       # Services métier
+│   ├── models/         # Modèles Pydantic & SQLAlchemy
+│   └── alembic/        # Migrations DB
+├── scripts/            # Scripts utilitaires
+├── setup.sh            # Installation
+├── run.sh              # Lancement
+└── stop.sh             # Arrêt
 ```
 
 ## 🛠️ Stack technique
 
-- **Backend** : FastAPI (Python 3.11+)
+### Frontend
+- **React 18** + TypeScript
+- **Vite** - Build tool rapide
+- **Tailwind CSS** - Styling
+- **Zustand** - State management
+- **Axios** - HTTP client
+- **React Router** - Navigation
+
+### Backend
+- **FastAPI** (Python 3.11+)
 - **LLM** : Ollama (qwen2.5:14b)
 - **Vector DB** : Qdrant
 - **Database** : PostgreSQL
@@ -180,10 +222,11 @@ Quand l'application est lancée :
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **API Backend** | http://localhost:8000 | API REST principale |
-| **API Docs** | http://localhost:8000/docs | Documentation interactive |
-| **Qdrant** | http://localhost:6333/dashboard | Vector database |
-| **Ollama** | http://localhost:11434 | LLM local |
+| **🌐 Frontend Web** | http://localhost:3000 | Interface utilisateur React |
+| **🔧 API Backend** | http://localhost:8000 | API REST principale |
+| **📚 API Docs** | http://localhost:8000/docs | Documentation interactive |
+| **🔍 Qdrant** | http://localhost:6333/dashboard | Vector database |
+| **🤖 Ollama** | http://localhost:11434 | LLM local |
 
 ## 🧪 Tests
 
