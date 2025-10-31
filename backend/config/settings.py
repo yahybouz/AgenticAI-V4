@@ -27,7 +27,7 @@ class MessagingConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    postgres_url: str = "postgresql://agenticai:agenticai@localhost:5432/agenticai"
+    postgres_url: str = "postgresql+asyncpg://agenticai:agenticai@localhost:5432/agenticai"
     vector_db: Literal["qdrant", "chroma"] = "qdrant"
     vector_url: str = "http://localhost:6333"
     blob_store: Literal["minio"] = "minio"
