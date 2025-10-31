@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import uuid
 
-from api.dependencies import get_master_orchestrator, get_current_active_user
+from api.dependencies import get_master_orchestrator, get_current_active_user, get_ollama_service
+from services.ollama import OllamaService
 from models import AgentDomain, OrchestrationRequest
 from models.user import User
 
@@ -34,48 +35,62 @@ class ChatResponse(BaseModel):
 async def send_message(
     current_user: Annotated[User, Depends(get_current_active_user)],
     message: ChatMessage,
-    # orchestrator=Depends(get_master_orchestrator)  # Temporairement désactivé
+    ollama: Annotated[OllamaService, Depends(get_ollama_service)]
 ):
     """
-    Envoie un message à l'orchestrateur et retourne la réponse.
+    Envoie un message et retourne une réponse générée par Ollama.
 
-    L'orchestrateur choisit automatiquement le meilleur agent pour répondre.
-
-    NOTE: Version de démonstration - L'orchestrateur complet sera activé
-    une fois le problème de logging résolu.
+    Le système utilise le LLM local (qwen2.5:14b) pour générer des réponses
+    intelligentes et contextualisées.
     """
     if not message.content.strip():
         raise HTTPException(status_code=400, detail="Le message ne peut pas être vide")
 
-    # VERSION DEMO: Réponse intelligente basique
-    # TODO: Réactiver l'orchestrateur une fois le bug de logging fixé
+    # System prompt pour AgenticAI
+    system_prompt = f"""Tu es AgenticAI, un assistant intelligent multi-agents.
 
-    user_message = message.content.lower()
+Informations contextuelles:
+- Utilisateur: {current_user.username} ({current_user.email})
+- Rôle: {current_user.role}
+- Système: AgenticAI V4 avec 19 agents spécialisés
 
-    # Réponses intelligentes basées sur le contenu
-    if any(word in user_message for word in ["bonjour", "salut", "hello", "hi"]):
-        demo_response = f"Bonjour {current_user.username} ! Je suis AgenticAI, votre assistant multi-agents intelligent. Je suis actuellement en mode démonstration, mais je peux déjà vous aider ! Comment puis-je vous assister aujourd'hui ?"
-        agent = "chat.greeter"
+Tu disposes de 19 agents répartis en 8 domaines:
+1. Chat - Conversations générales
+2. Coach - Coaching et bien-être
+3. Docs - Génération de documentation
+4. Mail - Traitement d'emails
+5. PM - Gestion de projets
+6. RAG - Recherche documentaire
+7. Voice - Traitement vocal
+8. WebIntel - Intelligence web
 
-    elif any(word in user_message for word in ["qui es-tu", "qui es tu", "présente-toi", "what are you"]):
-        demo_response = "Je suis AgenticAI V4, un système d'intelligence artificielle multi-agents. Je suis composé de 19 agents spécialisés dans différents domaines : chat, coaching, documentation, emails, gestion de projets, RAG, voix et intelligence web. Mon orchestrateur intelligent route vos requêtes vers les agents les plus appropriés !"
-        agent = "chat.assistant"
+Réponds de manière professionnelle, concise et utile. Adapte ton ton selon le contexte.
+Si on te demande des informations sur le système, explique ses capacités.
+Tu peux converser en français et en anglais."""
 
-    elif any(word in user_message for word in ["aide", "help", "comment"]):
-        demo_response = "Je peux vous aider dans de nombreux domaines :\n\n• 💬 Conversations générales\n• 📊 Gestion de projets\n• 📧 Traitement d'emails\n• 📚 Recherche de documents (RAG)\n• 🎤 Traitement vocal\n• 🌐 Intelligence web\n• 📝 Génération de documentation\n\nQue souhaitez-vous faire ?"
-        agent = "chat.helper"
+    try:
+        # Vérifier si Ollama est disponible
+        is_available = await ollama.is_available()
 
-    elif any(word in user_message for word in ["agent", "agents"]):
-        demo_response = "Actuellement, 19 agents sont disponibles dans le système, répartis en 8 domaines :\n\n1. **Chat** - Conversations générales\n2. **Coach** - Coaching et bien-être\n3. **Docs** - Documentation\n4. **Mail** - Gestion emails\n5. **PM** - Project Management\n6. **RAG** - Recherche documentaire\n7. **Voice** - Traitement vocal\n8. **WebIntel** - Intelligence web\n\nVous pouvez consulter la liste complète dans l'onglet 'Agents' !"
-        agent = "info.agents"
+        if not is_available:
+            # Fallback en mode démo si Ollama n'est pas disponible
+            demo_response = f"⚠️ Service Ollama temporairement indisponible.\n\nJe suis AgenticAI, votre assistant multi-agents. Le système LLM sera de retour sous peu. En attendant, je peux vous donner des informations sur le système AgenticAI V4 et ses 19 agents spécialisés."
+            agent = "chat.fallback"
+        else:
+            # Générer la réponse avec Ollama
+            response_text = await ollama.chat_completion(
+                user_message=message.content,
+                system_prompt=system_prompt,
+                temperature=0.7,
+                max_tokens=2000
+            )
+            demo_response = response_text
+            agent = "ollama.qwen2.5"
 
-    elif any(word in user_message for word in ["merci", "thank"]):
-        demo_response = "Avec plaisir ! N'hésitez pas si vous avez d'autres questions. Je suis là pour vous aider ! 😊"
-        agent = "chat.polite"
-
-    else:
-        demo_response = f"J'ai bien reçu votre message : '{message.content[:100]}{'...' if len(message.content) > 100 else ''}'\n\nJe suis actuellement en mode démonstration. L'orchestrateur complet avec connexion aux 19 agents sera activé prochainement. Pour l'instant, je peux répondre aux questions sur le système AgenticAI !"
-        agent = "chat.demo"
+    except Exception as e:
+        # Fallback en cas d'erreur
+        demo_response = f"Une erreur est survenue lors de la génération de la réponse. Je suis AgenticAI, votre assistant multi-agents intelligent. Comment puis-je vous aider ?"
+        agent = "chat.error"
 
     # Retourner la réponse formatée
     return ChatResponse(

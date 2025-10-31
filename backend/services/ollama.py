@@ -45,6 +45,69 @@ class OllamaService:
         logger.info("[Ollama:fallback] chat", extra={"model": model_name})
         return {"model": model_name, "output": f"Stub response for: {prompt[:64]}"}
 
+    async def chat_completion(
+        self,
+        user_message: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000
+    ) -> str:
+        """
+        Chat completion with system prompt support using Ollama's /api/chat endpoint
+
+        Args:
+            user_message: User's message
+            system_prompt: Optional system instructions
+            model: Model name (default: from settings)
+            temperature: Temperature for generation (0-1)
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            Generated response text
+        """
+        model_name = model or self.settings.ollama_model
+        messages = []
+
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+
+        messages.append({"role": "user", "content": user_message})
+
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            }
+        }
+
+        client = await self._get_client()
+        if client:
+            try:
+                response = await client.post("/api/chat", json=payload)
+                response.raise_for_status()
+                data = response.json()
+                return data.get("message", {}).get("content", "")
+            except httpx.HTTPError as exc:
+                logger.warning("Ollama chat completion HTTPError", exc_info=exc)
+
+        logger.info("[Ollama:fallback] chat_completion", extra={"model": model_name})
+        return f"Je suis AgenticAI, votre assistant intelligent. (Mode démo - Ollama non disponible)"
+
+    async def is_available(self) -> bool:
+        """Check if Ollama is available"""
+        client = await self._get_client()
+        if client:
+            try:
+                response = await client.get("/api/tags")
+                return response.status_code == 200
+            except:
+                return False
+        return False
+
     async def embed(self, texts: List[str]) -> List[List[float]]:
         embedding_model = next((m for m in self.settings.ollama_models if m.role == "embedding"), None)
         if not embedding_model:

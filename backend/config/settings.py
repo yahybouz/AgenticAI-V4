@@ -72,6 +72,8 @@ class AppSettings(BaseSettings):
     monitoring: MonitoringThresholds = Field(default_factory=MonitoringThresholds)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:14b"
+    ollama_embedding_model: str = "nomic-embed-text"
     ollama_timeout_seconds: float = 60.0
     ollama_models: List[OllamaModelConfig] = Field(
         default_factory=lambda: [

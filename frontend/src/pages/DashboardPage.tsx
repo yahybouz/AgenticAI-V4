@@ -1,8 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../services/api';
-import { Bot, FileText, Activity, HardDrive, TrendingUp, Users } from 'lucide-react';
+import { Bot, FileText, Activity, HardDrive, TrendingUp, Users, BarChart3, PieChart } from 'lucide-react';
 import type { UserStats } from '../types';
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart as RePieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -36,6 +53,37 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  // Mock data for charts (in production, this would come from API)
+  const activityData = [
+    { date: '25/10', queries: 12, agents: 3 },
+    { date: '26/10', queries: 19, agents: 5 },
+    { date: '27/10', queries: 15, agents: 4 },
+    { date: '28/10', queries: 28, agents: 6 },
+    { date: '29/10', queries: 22, agents: 5 },
+    { date: '30/10', queries: 35, agents: 7 },
+    { date: '31/10', queries: 42, agents: 8 },
+  ];
+
+  const agentUsageData = [
+    { name: 'Chat', value: 35, color: '#3B82F6' },
+    { name: 'RAG', value: 25, color: '#10B981' },
+    { name: 'Coach', value: 15, color: '#F59E0B' },
+    { name: 'Docs', value: 12, color: '#8B5CF6' },
+    { name: 'Mail', value: 8, color: '#EF4444' },
+    { name: 'Other', value: 5, color: '#6B7280' },
+  ];
+
+  const domainActivityData = [
+    { domain: 'Chat', count: 145 },
+    { domain: 'RAG', count: 98 },
+    { domain: 'Docs', count: 76 },
+    { domain: 'Coach', count: 54 },
+    { domain: 'Mail', count: 32 },
+    { domain: 'PM', count: 28 },
+    { domain: 'Voice', count: 15 },
+    { domain: 'WebIntel', count: 12 },
+  ];
 
   const statCards = [
     {
@@ -202,6 +250,117 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Activity Over Time */}
+        <div className="card">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary-600" />
+            Activité sur 7 jours
+          </h2>
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart data={activityData}>
+              <defs>
+                <linearGradient id="colorQueries" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              <XAxis
+                dataKey="date"
+                stroke="#6B7280"
+                style={{ fontSize: '12px' }}
+              />
+              <YAxis
+                stroke="#6B7280"
+                style={{ fontSize: '12px' }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="queries"
+                stroke="#3B82F6"
+                fillOpacity={1}
+                fill="url(#colorQueries)"
+                name="Requêtes"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Agent Usage Distribution */}
+        <div className="card">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <PieChart className="w-5 h-5 text-primary-600" />
+            Distribution des Agents
+          </h2>
+          <ResponsiveContainer width="100%" height={250}>
+            <RePieChart>
+              <Pie
+                data={agentUsageData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {agentUsageData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </RePieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Domain Activity Bar Chart */}
+        <div className="card lg:col-span-2">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-primary-600" />
+            Activité par Domaine
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={domainActivityData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              <XAxis
+                dataKey="domain"
+                stroke="#6B7280"
+                style={{ fontSize: '12px' }}
+              />
+              <YAxis
+                stroke="#6B7280"
+                style={{ fontSize: '12px' }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}
+                cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
+              />
+              <Bar
+                dataKey="count"
+                fill="#3B82F6"
+                radius={[8, 8, 0, 0]}
+                name="Utilisation"
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
       {/* Quick Actions */}
       <div className="card">

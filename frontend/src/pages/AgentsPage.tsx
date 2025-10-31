@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { Bot, Plus, Trash2, Activity, AlertCircle } from 'lucide-react';
+import { Bot, Plus, Trash2, Activity, AlertCircle, X } from 'lucide-react';
 import type { Agent, CreateAgentRequest } from '../types';
 
 export default function AgentsPage() {
@@ -192,12 +192,35 @@ interface CreateAgentModalProps {
 function CreateAgentModal({ onClose, onSuccess }: CreateAgentModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [skillInput, setSkillInput] = useState('');
   const [formData, setFormData] = useState<CreateAgentRequest>({
     name: '',
     domain: 'RAG',
     skills: [],
     description: '',
   });
+
+  const addSkill = () => {
+    const trimmed = skillInput.trim();
+    if (trimmed && !formData.skills.includes(trimmed)) {
+      setFormData({ ...formData, skills: [...formData.skills, trimmed] });
+      setSkillInput('');
+    }
+  };
+
+  const removeSkill = (skill: string) => {
+    setFormData({
+      ...formData,
+      skills: formData.skills.filter((s) => s !== skill),
+    });
+  };
+
+  const handleSkillKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSkill();
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,11 +272,57 @@ function CreateAgentModal({ onClose, onSuccess }: CreateAgentModalProps) {
               onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
               className="input"
             >
-              <option value="RAG">RAG</option>
-              <option value="CHAT">CHAT</option>
-              <option value="VOICE">VOICE</option>
-              <option value="MAIL">MAIL</option>
+              <option value="RAG">RAG - Recherche documentaire</option>
+              <option value="CHAT">CHAT - Conversations générales</option>
+              <option value="VOICE">VOICE - Traitement vocal</option>
+              <option value="MAIL">MAIL - Gestion d'emails</option>
+              <option value="COACH">COACH - Coaching et bien-être</option>
+              <option value="DOCS">DOCS - Génération de documentation</option>
+              <option value="PM">PM - Project Management</option>
+              <option value="WEBINTEL">WEBINTEL - Intelligence web</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Compétences
+            </label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={skillInput}
+                onChange={(e) => setSkillInput(e.target.value)}
+                onKeyDown={handleSkillKeyDown}
+                className="input flex-1"
+                placeholder="Ex: recherche, analyse, synthèse..."
+              />
+              <button
+                type="button"
+                onClick={addSkill}
+                className="btn btn-secondary"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            {formData.skills.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {formData.skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-700"
+                  >
+                    {skill}
+                    <button
+                      type="button"
+                      onClick={() => removeSkill(skill)}
+                      className="hover:bg-blue-200 rounded-full p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
