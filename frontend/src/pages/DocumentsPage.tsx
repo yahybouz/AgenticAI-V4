@@ -11,6 +11,7 @@ export default function DocumentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -30,10 +31,7 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadFile = async (file: File) => {
     setIsUploading(true);
     setError(null);
 
@@ -47,6 +45,40 @@ export default function DocumentsPage() {
       setError(error.response?.data?.detail || 'Erreur lors de l\'upload');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await uploadFile(file);
     }
   };
 
@@ -106,31 +138,63 @@ export default function DocumentsPage() {
             Gérez vos documents et effectuez des recherches sémantiques
           </p>
         </div>
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            onChange={handleFileUpload}
-            className="hidden"
-            accept=".pdf,.docx,.txt,.md,.html"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="btn btn-primary flex items-center gap-2"
+      </div>
+
+      {/* Drag & Drop Upload Zone */}
+      <div
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        className={`card border-2 border-dashed transition-all ${
+          isDragging
+            ? 'border-primary-500 bg-primary-50'
+            : 'border-gray-300 hover:border-primary-400'
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileUpload}
+          className="hidden"
+          accept=".pdf,.docx,.txt,.md,.html,.json,.csv"
+        />
+        <div className="text-center py-8">
+          <div
+            className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-colors ${
+              isDragging ? 'bg-primary-100' : 'bg-gray-100'
+            }`}
           >
-            {isUploading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Upload en cours...
-              </>
-            ) : (
-              <>
-                <Upload className="w-5 h-5" />
-                Upload document
-              </>
-            )}
-          </button>
+            <Upload
+              className={`w-8 h-8 ${
+                isDragging ? 'text-primary-600' : 'text-gray-400'
+              }`}
+            />
+          </div>
+          {isUploading ? (
+            <div className="space-y-2">
+              <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm font-medium text-gray-700">Upload en cours...</p>
+            </div>
+          ) : (
+            <>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {isDragging ? 'Déposez votre fichier ici' : 'Glissez-déposez un document'}
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                ou{' '}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  parcourez vos fichiers
+                </button>
+              </p>
+              <p className="text-xs text-gray-500">
+                Formats supportés: PDF, DOCX, TXT, MD, HTML, JSON, CSV
+              </p>
+            </>
+          )}
         </div>
       </div>
 

@@ -14,6 +14,7 @@ export default function ChatPage() {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [useStreaming, setUseStreaming] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,31 +37,111 @@ export default function ChatPage() {
     setInputMessage('');
     setIsTyping(true);
 
-    try {
-      // Call the real API
-      const response = await api.sendChatMessage(currentInput);
+    // Create a placeholder message for streaming
+    const aiMessageId = (Date.now() + 1).toString();
+    const placeholderMessage: Message = {
+      id: aiMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+    };
 
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.message,
-        timestamp: response.timestamp,
-      };
+    if (useStreaming) {
+      // Streaming mode
+      setMessages((prev) => [...prev, placeholderMessage]);
 
-      setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
-      console.error('Error sending message:', error);
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:8000/api/chat/stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: currentInput, context: {} }),
+        });
 
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'Désolé, une erreur est survenue lors du traitement de votre message. Veuillez réessayer.',
-        timestamp: new Date().toISOString(),
-      };
+        if (!response.ok) throw new Error('Stream failed');
 
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsTyping(false);
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let accumulatedContent = '';
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  if (data.content) {
+                    accumulatedContent += data.content;
+                    // Update the message in real-time
+                    setMessages((prev) =>
+                      prev.map((msg) =>
+                        msg.id === aiMessageId
+                          ? { ...msg, content: accumulatedContent }
+                          : msg
+                      )
+                    );
+                  }
+                  if (data.done) {
+                    break;
+                  }
+                } catch (e) {
+                  // Ignore JSON parse errors
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error streaming message:', error);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === aiMessageId
+              ? {
+                  ...msg,
+                  content: 'Désolé, une erreur est survenue lors du streaming. Veuillez réessayer.',
+                }
+              : msg
+          )
+        );
+      } finally {
+        setIsTyping(false);
+      }
+    } else {
+      // Non-streaming mode (original)
+      try {
+        const response = await api.sendChatMessage(currentInput);
+
+        const aiMessage: Message = {
+          id: aiMessageId,
+          role: 'assistant',
+          content: response.message,
+          timestamp: response.timestamp,
+        };
+
+        setMessages((prev) => [...prev, aiMessage]);
+      } catch (error) {
+        console.error('Error sending message:', error);
+
+        const errorMessage: Message = {
+          id: aiMessageId,
+          role: 'assistant',
+          content: 'Désolé, une erreur est survenue lors du traitement de votre message. Veuillez réessayer.',
+          timestamp: new Date().toISOString(),
+        };
+
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setIsTyping(false);
+      }
     }
   };
 
@@ -159,9 +240,20 @@ export default function ChatPage() {
               <Send className="w-5 h-5" />
             </button>
           </form>
-          <p className="text-xs text-gray-500 mt-2">
-            Propulsé par AgenticAI - Orchestrateur multi-agents intelligent
-          </p>
+          <div className="flex items-center justify-between mt-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useStreaming}
+                onChange={(e) => setUseStreaming(e.target.checked)}
+                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <span className="text-xs text-gray-600">Streaming activé</span>
+            </label>
+            <p className="text-xs text-gray-500">
+              Propulsé par AgenticAI - Orchestrateur multi-agents intelligent
+            </p>
+          </div>
         </div>
       </div>
     </div>
