@@ -12,6 +12,9 @@ import MonitoringPage from './pages/MonitoringPage';
 import VoicePage from './pages/VoicePage';
 import WebIntelPage from './pages/WebIntelPage';
 import CoachPage from './pages/CoachPage';
+import MailPage from './pages/MailPage';
+import PMPage from './pages/PMPage';
+import DocsPage from './pages/DocsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -109,6 +112,36 @@ function App() {
             <PrivateRoute>
               <Layout>
                 <CoachPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/mail"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <MailPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/pm"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <PMPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/docs"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <DocsPage />
               </Layout>
             </PrivateRoute>
           }

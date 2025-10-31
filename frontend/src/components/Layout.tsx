@@ -15,6 +15,8 @@ import {
   Mic,
   Globe,
   Heart,
+  Mail,
+  Briefcase,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -35,6 +37,9 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Voice', href: '/voice', icon: Mic },
     { name: 'WebIntel', href: '/webintel', icon: Globe },
     { name: 'Coach', href: '/coach', icon: Heart },
+    { name: 'Mail', href: '/mail', icon: Mail },
+    { name: 'PM', href: '/pm', icon: Briefcase },
+    { name: 'Docs', href: '/docs', icon: FileText },
     { name: 'Monitoring', href: '/monitoring', icon: Activity },
   ];
 
