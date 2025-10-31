@@ -1,4 +1,4 @@
-# 🎉 AgenticAI V4 - Statut Final
+# 🎉 NexusAI - Statut Final
 
 **Date:** 31 octobre 2025 - 23:40
 **Version:** 4.0.0
@@ -437,7 +437,7 @@ DATABASE_URL = "postgresql+asyncpg://agenticai:agenticai@localhost:5432/agentica
 
 ### Test Startup
 ```bash
-PYTHONPATH="/Users/yahybouz/Desktop/Mes Scripts/AgenticAI-V4/backend" \
+PYTHONPATH="/Users/yahybouz/Desktop/Mes Scripts/NexusAI/backend" \
   backend/.venv/bin/python scripts/test_startup.py
 ```
 
@@ -450,7 +450,7 @@ PYTHONPATH="/Users/yahybouz/Desktop/Mes Scripts/AgenticAI-V4/backend" \
 **Backend:**
 ```bash
 cd backend
-PYTHONPATH="/path/to/AgenticAI-V4/backend" \
+PYTHONPATH="/path/to/NexusAI/backend" \
   .venv/bin/python api/main.py
 ```
 
@@ -646,7 +646,7 @@ curl http://localhost:8000/info
 
 ---
 
-**🚀 AgenticAI V4 est prêt à être utilisé !**
+**🚀 NexusAI est prêt à être utilisé !**
 
 **Accès rapide:** http://localhost:3001
 **Documentation:** http://localhost:8000/docs

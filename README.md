@@ -1,5 +1,6 @@
-# AgenticAI V4 🤖
+# NexusAI 🌟
 
+**The Connected Intelligence Platform**
 **Système multi-agents local avec RAG alimenté par Ollama**
 
 Plateforme d'intelligence artificielle complète orchestrant 19 agents spécialisés pour des tâches complexes, avec support de documents multi-formats, recherche sémantique avancée, et interface web moderne.
@@ -33,8 +34,8 @@ Pass:  admin123
 
 ```bash
 # 1. Cloner le projet
-git clone https://github.com/votre-repo/AgenticAI-V4
-cd AgenticAI-V4
+git clone https://github.com/votre-repo/NexusAI
+cd NexusAI
 
 # 2. Installer les dépendances
 ./setup.sh
@@ -395,8 +396,8 @@ Les contributions sont les bienvenues !
 
 ```bash
 # Fork le projet
-git clone https://github.com/votre-username/AgenticAI-V4
-cd AgenticAI-V4
+git clone https://github.com/votre-username/NexusAI
+cd NexusAI
 
 # Créer une branche
 git checkout -b feature/nouvelle-fonctionnalite
@@ -455,7 +456,7 @@ ollama list    # Modèles LLM
 
 ## 🎉 Résumé
 
-**AgenticAI V4** est une plateforme d'IA multi-agents complète et prête pour la production, avec:
+**NexusAI** est une plateforme d'IA multi-agents complète et prête pour la production, avec:
 
 ✅ **Interface Web Moderne** - 13 pages React TypeScript
 ✅ **API Complète** - 40 endpoints FastAPI documentés

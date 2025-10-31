@@ -1,5 +1,5 @@
 """Application-wide settings and defaults.
-Derived from cahier des charges AgenticAI V4.
+NexusAI - The Connected Intelligence Platform
 """
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ class AppSettings(BaseSettings):
     """Centralized configuration for the backend."""
 
     environment: Literal["local", "staging", "prod"] = "local"
-    project_name: str = "AgenticAI V4"
+    project_name: str = "NexusAI"
     api_version: str = "4.0.0"
     cors_origins: List[str] = Field(
         default_factory=lambda: [
