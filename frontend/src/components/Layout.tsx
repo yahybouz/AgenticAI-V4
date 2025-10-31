@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   Settings,
+  Activity,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -28,6 +29,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Agents', href: '/agents', icon: Bot },
     { name: 'Documents', href: '/documents', icon: FileText },
     { name: 'Chat', href: '/chat', icon: MessageSquare },
+    { name: 'Monitoring', href: '/monitoring', icon: Activity },
   ];
 
   const handleLogout = () => {

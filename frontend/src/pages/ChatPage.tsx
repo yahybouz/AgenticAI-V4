@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Message } from '../types';
 
@@ -18,8 +18,43 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    loadChatHistory();
+  }, []);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const loadChatHistory = async () => {
+    try {
+      const history = await api.getChatHistory();
+      if (history && history.length > 0) {
+        setMessages(history);
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      // Keep default welcome message if history fails
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (!confirm('Êtes-vous sûr de vouloir effacer tout l\'historique de chat ?')) return;
+
+    try {
+      await api.clearChatHistory();
+      setMessages([
+        {
+          id: '1',
+          role: 'assistant',
+          content: 'Bonjour ! Je suis votre assistant AgenticAI. Comment puis-je vous aider aujourd\'hui ?',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      alert('Erreur lors de la suppression de l\'historique');
+    }
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,11 +183,21 @@ export default function ChatPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat</h1>
-        <p className="text-gray-600">
-          Interagissez avec vos agents intelligents
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat</h1>
+          <p className="text-gray-600">
+            Interagissez avec vos agents intelligents
+          </p>
+        </div>
+        <button
+          onClick={handleClearHistory}
+          className="btn btn-secondary flex items-center gap-2"
+          title="Effacer l'historique"
+        >
+          <Trash2 className="w-4 h-4" />
+          Effacer l'historique
+        </button>
       </div>
 
       {/* Chat Container */}

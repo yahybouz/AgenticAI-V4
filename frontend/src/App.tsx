@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import AgentsPage from './pages/AgentsPage';
 import DocumentsPage from './pages/DocumentsPage';
 import ChatPage from './pages/ChatPage';
+import MonitoringPage from './pages/MonitoringPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -65,6 +66,16 @@ function App() {
             <PrivateRoute>
               <Layout>
                 <ChatPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/monitoring"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <MonitoringPage />
               </Layout>
             </PrivateRoute>
           }
