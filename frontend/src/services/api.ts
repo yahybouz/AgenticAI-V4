@@ -123,6 +123,29 @@ class ApiService {
     await this.client.delete(`/api/documents/${documentId}`);
   }
 
+  // Chat endpoints
+  async sendChatMessage(content: string, context: Record<string, any> = {}): Promise<{
+    message: string;
+    trace_id: string;
+    agent_used: string | null;
+    timestamp: string;
+  }> {
+    const response = await this.client.post('/api/chat/send', {
+      content,
+      context,
+    });
+    return response.data;
+  }
+
+  async getChatHistory(): Promise<any> {
+    const response = await this.client.get('/api/chat/history');
+    return response.data;
+  }
+
+  async clearChatHistory(): Promise<void> {
+    await this.client.delete('/api/chat/history');
+  }
+
   // System info
   async getSystemInfo(): Promise<any> {
     const response = await this.client.get('/info');

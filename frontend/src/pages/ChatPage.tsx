@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User } from 'lucide-react';
+import { api } from '../services/api';
 import type { Message } from '../types';
 
 export default function ChatPage() {
@@ -31,20 +32,36 @@ export default function ChatPage() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = inputMessage;
     setInputMessage('');
     setIsTyping(true);
 
-    // Simulate AI response (replace with actual API call)
-    setTimeout(() => {
+    try {
+      // Call the real API
+      const response = await api.sendChatMessage(currentInput);
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Je suis désolé, mais je suis actuellement une interface de démonstration. Pour activer l\'intégration complète avec les agents, vous devrez configurer la connexion WebSocket avec le backend. Vous pouvez uploader des documents et créer des agents dans les autres sections de l\'application.',
+        content: response.message,
+        timestamp: response.timestamp,
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Désolé, une erreur est survenue lors du traitement de votre message. Veuillez réessayer.',
         timestamp: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, aiMessage]);
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -143,7 +160,7 @@ export default function ChatPage() {
             </button>
           </form>
           <p className="text-xs text-gray-500 mt-2">
-            Note: Cette interface de chat est en mode démonstration. L'intégration WebSocket complète sera activée dans une prochaine version.
+            Propulsé par AgenticAI - Orchestrateur multi-agents intelligent
           </p>
         </div>
       </div>
