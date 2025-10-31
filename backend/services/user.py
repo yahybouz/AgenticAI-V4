@@ -28,14 +28,19 @@ class UserService:
         self.auth_service = AuthService()
         settings = get_settings()
 
-        # Create async engine for PostgreSQL
-        self.engine = create_async_engine(
-            settings.database.postgres_url,
-            echo=False,
-            pool_pre_ping=True,
-            pool_size=5,
-            max_overflow=10
-        )
+        # Create async engine (PostgreSQL ou SQLite)
+        db_url = settings.database.postgres_url
+        engine_kwargs = {"echo": False}
+
+        # Pool settings only for PostgreSQL
+        if "postgresql" in db_url:
+            engine_kwargs.update({
+                "pool_pre_ping": True,
+                "pool_size": 5,
+                "max_overflow": 10
+            })
+
+        self.engine = create_async_engine(db_url, **engine_kwargs)
 
         # Create async session factory
         self.SessionLocal = async_sessionmaker(
@@ -44,7 +49,8 @@ class UserService:
             expire_on_commit=False
         )
 
-        logger.info("[UserService] Service PostgreSQL initialisé")
+        db_type = "PostgreSQL" if "postgresql" in db_url else "SQLite"
+        logger.info(f"[UserService] Service {db_type} initialisé")
 
     async def init_db(self):
         """Initialize database and create default admin if needed"""

@@ -27,7 +27,9 @@ class MessagingConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    postgres_url: str = "postgresql+asyncpg://agenticai:agenticai@localhost:5432/agenticai"
+    # SQLite par défaut pour dev sans Docker, PostgreSQL pour production
+    postgres_url: str = "sqlite+aiosqlite:///./agenticai.db"
+    # Utiliser ceci pour PostgreSQL: "postgresql+asyncpg://agenticai:agenticai@localhost:5432/agenticai"
     vector_db: Literal["qdrant", "chroma"] = "qdrant"
     vector_url: str = "http://localhost:6333"
     blob_store: Literal["minio"] = "minio"
