@@ -65,7 +65,7 @@ class ApiService {
   }
 
   async getUserStats(): Promise<UserStats> {
-    const response = await this.client.get<UserStats>('/api/auth/stats');
+    const response = await this.client.get<UserStats>('/api/auth/me/stats');
     return response.data;
   }
 
