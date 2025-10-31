@@ -46,6 +46,12 @@ cleanup() {
     echo ""
     log_warning "Arrêt en cours..."
 
+    # Arrêter le frontend si en cours
+    if [ ! -z "$FRONTEND_PID" ]; then
+        log_info "Arrêt du frontend..."
+        kill $FRONTEND_PID 2>/dev/null || true
+    fi
+
     # Arrêter le backend si en cours
     if [ ! -z "$BACKEND_PID" ]; then
         log_info "Arrêt du backend..."
@@ -224,17 +230,50 @@ cd ..
 # Attendre que le backend soit prêt
 log_info "Attente du démarrage du backend..."
 for i in {1..30}; do
-    if curl -s http://localhost:8000/api/health >/dev/null 2>&1; then
+    if curl -s http://localhost:8000/health >/dev/null 2>&1; then
         log_success "Backend démarré sur http://localhost:8000"
         break
     fi
     sleep 1
 done
 
-if ! curl -s http://localhost:8000/api/health >/dev/null 2>&1; then
+if ! curl -s http://localhost:8000/health >/dev/null 2>&1; then
     log_error "Le backend n'a pas démarré correctement"
     kill $BACKEND_PID 2>/dev/null || true
     exit 1
+fi
+
+###############################################################################
+# Démarrage du Frontend
+###############################################################################
+echo ""
+log_info "Démarrage du frontend React..."
+
+# Vérifier si le port 3000 est libre
+if port_in_use 3000; then
+    log_warning "Le port 3000 est déjà utilisé"
+    read -p "Voulez-vous arrêter le processus existant ? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+        sleep 2
+    else
+        log_warning "Le frontend ne sera pas démarré"
+        FRONTEND_PID=""
+    fi
+fi
+
+# Démarrer le frontend si le port est libre
+if ! port_in_use 3000; then
+    cd frontend
+    npm run dev &
+    FRONTEND_PID=$!
+    cd ..
+
+    # Attendre que le frontend soit prêt
+    log_info "Attente du démarrage du frontend..."
+    sleep 5
+    log_success "Frontend démarré sur http://localhost:3000"
 fi
 
 ###############################################################################
@@ -247,21 +286,25 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "${CYAN}Services en cours d'exécution :${NC}"
 echo ""
-echo -e "  ${BLUE}API Backend:${NC}      http://localhost:8000"
-echo -e "  ${BLUE}API Docs:${NC}         http://localhost:8000/docs"
-echo -e "  ${BLUE}Qdrant Dashboard:${NC} http://localhost:6333/dashboard"
-echo -e "  ${BLUE}Ollama:${NC}           http://localhost:11434"
+echo -e "  ${BLUE}🌐 Frontend:${NC}       http://localhost:3000"
+echo -e "  ${BLUE}🔧 API Backend:${NC}    http://localhost:8000"
+echo -e "  ${BLUE}📚 API Docs:${NC}       http://localhost:8000/docs"
+echo -e "  ${BLUE}🔍 Qdrant:${NC}         http://localhost:6333/dashboard"
+echo -e "  ${BLUE}🤖 Ollama:${NC}         http://localhost:11434"
 echo ""
-echo -e "${YELLOW}Endpoints disponibles :${NC}"
+echo -e "${YELLOW}Connexion par défaut :${NC}"
+echo -e "  ${GREEN}Email:${NC}     admin@agenticai.dev"
+echo -e "  ${GREEN}Password:${NC}  admin123"
 echo ""
-echo -e "  • POST   /api/agents/execute       - Exécuter un agent"
-echo -e "  • POST   /api/orchestrator/run     - Orchestration multi-agents"
+echo -e "${YELLOW}Endpoints API disponibles :${NC}"
+echo ""
+echo -e "  • POST   /api/auth/login           - Authentification"
+echo -e "  • POST   /api/auth/register        - Inscription"
+echo -e "  • GET    /api/auth/me              - Profil utilisateur"
+echo -e "  • POST   /api/agents/              - Créer un agent"
 echo -e "  • POST   /api/documents/upload     - Upload de documents"
 echo -e "  • POST   /api/documents/search     - Recherche sémantique"
-echo -e "  • GET    /api/cache/stats          - Statistiques du cache"
-echo ""
-echo -e "${CYAN}Logs du backend :${NC}"
-echo -e "  Suivez les logs en temps réel avec: ${GREEN}tail -f backend/logs/app.log${NC}"
+echo -e "  • POST   /api/orchestrator/run     - Orchestration multi-agents"
 echo ""
 echo -e "${YELLOW}Pour arrêter l'application :${NC}"
 echo -e "  Appuyez sur ${GREEN}Ctrl+C${NC}"
@@ -272,5 +315,5 @@ echo -e "${BLUE}║  pour arrêter tous les services                            
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Garder le script en cours d'exécution et afficher les logs
-tail -f backend/logs/*.log 2>/dev/null || wait $BACKEND_PID
+# Garder le script en cours d'exécution
+wait $BACKEND_PID
