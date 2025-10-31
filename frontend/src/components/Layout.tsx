@@ -12,6 +12,9 @@ import {
   X,
   Settings,
   Activity,
+  Mic,
+  Globe,
+  Heart,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -29,6 +32,9 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Agents', href: '/agents', icon: Bot },
     { name: 'Documents', href: '/documents', icon: FileText },
     { name: 'Chat', href: '/chat', icon: MessageSquare },
+    { name: 'Voice', href: '/voice', icon: Mic },
+    { name: 'WebIntel', href: '/webintel', icon: Globe },
+    { name: 'Coach', href: '/coach', icon: Heart },
     { name: 'Monitoring', href: '/monitoring', icon: Activity },
   ];
 

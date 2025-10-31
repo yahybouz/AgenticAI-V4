@@ -9,6 +9,9 @@ import AgentsPage from './pages/AgentsPage';
 import DocumentsPage from './pages/DocumentsPage';
 import ChatPage from './pages/ChatPage';
 import MonitoringPage from './pages/MonitoringPage';
+import VoicePage from './pages/VoicePage';
+import WebIntelPage from './pages/WebIntelPage';
+import CoachPage from './pages/CoachPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -76,6 +79,36 @@ function App() {
             <PrivateRoute>
               <Layout>
                 <MonitoringPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/voice"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <VoicePage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/webintel"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <WebIntelPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/coach"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <CoachPage />
               </Layout>
             </PrivateRoute>
           }
